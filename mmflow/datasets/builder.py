@@ -8,8 +8,8 @@ import mmcv
 import numpy as np
 import torch
 from mmcv.parallel import collate
-from mmcv.runner import get_dist_info
-from mmcv.utils import Registry, build_from_cfg
+from mmengine.dist.utils import get_dist_info
+from mmengine.registry import Registry, build_from_cfg
 from torch.utils.data import DataLoader, Dataset
 
 from .samplers import DistributedSampler, MixedBatchDistributedSampler
@@ -27,12 +27,12 @@ DATASETS = Registry('dataset')
 PIPELINES = Registry('pipeline')
 
 
-def build_dataset(cfg: Union[mmcv.Config, Sequence[mmcv.Config]],
+def build_dataset(cfg: Union[mmengine.config.Config, Sequence[mmengine.config.Config]],
                   default_args: Optional[dict] = None) -> Dataset:
     """Build Pytorch dataset.
 
     Args:
-        cfg (mmcv.Config): Config dict of dataset or list of config dict.
+        cfg (mmengine.config.Config): Config dict of dataset or list of config dict.
             It should at least contain the key "type".
         default_args (dict, optional): Default initialization arguments.
 

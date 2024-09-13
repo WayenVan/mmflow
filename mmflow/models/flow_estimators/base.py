@@ -5,8 +5,8 @@ from typing import Optional, Union
 
 import torch
 import torch.distributed as dist
-from mmcv.runner import BaseModule
-from mmcv.utils import print_log
+from mmengine.model import BaseModule
+from mmengine.logging import print_log
 
 from mmflow.utils.logger import get_root_logger
 

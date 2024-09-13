@@ -3,23 +3,28 @@ import os.path as osp
 
 import pytest
 import torch
-from mmcv.utils import Config
+
+# from mmengine.config import Config
+from mmengine.config import Config
 
 from mmflow.models import build_flow_estimator
 from mmflow.models.flow_estimators.base import FlowEstimator
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA not available')
-@pytest.mark.parametrize('cfg_file', [
-    '../../configs/_base_/models/pwcnet.py',
-    '../../configs/_base_/models/maskflownets.py',
-    '../../configs/_base_/models/maskflownet.py',
-    '../../configs/_base_/models/flownetc.py',
-    '../../configs/_base_/models/liteflownet/liteflownet.py',
-    '../../configs/_base_/models/flownet2/flownet2cs.py',
-    '../../configs/_base_/models/flownet2/flownet2css.py',
-    '../../configs/_base_/models/flownet2/flownet2.py',
-])
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+@pytest.mark.parametrize(
+    "cfg_file",
+    [
+        "../../configs/_base_/models/pwcnet.py",
+        "../../configs/_base_/models/maskflownets.py",
+        "../../configs/_base_/models/maskflownet.py",
+        "../../configs/_base_/models/flownetc.py",
+        "../../configs/_base_/models/liteflownet/liteflownet.py",
+        "../../configs/_base_/models/flownet2/flownet2cs.py",
+        "../../configs/_base_/models/flownet2/flownet2css.py",
+        "../../configs/_base_/models/flownet2/flownet2.py",
+    ],
+)
 def test_flow_estimator(cfg_file):
     # BaseFlowEstimator has abstract method
     with pytest.raises(TypeError):
@@ -42,14 +47,17 @@ def test_flow_estimator(cfg_file):
     assert float(loss.item()) > 0
 
 
-@pytest.mark.parametrize('cfg_file', [
-    '../../configs/_base_/models/raft.py',
-    '../../configs/_base_/models/flownets.py',
-    '../../configs/_base_/models/flownet2/flownet2sd.py',
-    '../../configs/_base_/models/gma/gma.py',
-    '../../configs/_base_/models/gma/gma_p-only.py',
-    '../../configs/_base_/models/gma/gma_plus-p.py'
-])
+@pytest.mark.parametrize(
+    "cfg_file",
+    [
+        "../../configs/_base_/models/raft.py",
+        "../../configs/_base_/models/flownets.py",
+        "../../configs/_base_/models/flownet2/flownet2sd.py",
+        "../../configs/_base_/models/gma/gma.py",
+        "../../configs/_base_/models/gma/gma_p-only.py",
+        "../../configs/_base_/models/gma/gma_plus-p.py",
+    ],
+)
 def test_flow_estimator_without_cuda(cfg_file):
     # BaseFlowEstimator has abstract method
     with pytest.raises(TypeError):
@@ -57,9 +65,9 @@ def test_flow_estimator_without_cuda(cfg_file):
 
     cfg_file = osp.join(osp.dirname(__file__), cfg_file)
     cfg = Config.fromfile(cfg_file)
-    if cfg.model.type == 'RAFT':
+    if cfg.model.type == "RAFT":
         # Replace SyncBN with BN to inference on CPU
-        cfg.model.cxt_encoder.norm_cfg = dict(type='BN', requires_grad=True)
+        cfg.model.cxt_encoder.norm_cfg = dict(type="BN", requires_grad=True)
 
     estimator = build_flow_estimator(cfg.model)
     imgs = torch.randn(1, 6, 64, 64)
@@ -74,10 +82,9 @@ def test_flow_estimator_without_cuda(cfg_file):
     assert float(loss.item()) > 0
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA not available')
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_irr_pwc():
-
-    cfg_file = '../../configs/_base_/models/irrpwc.py'
+    cfg_file = "../../configs/_base_/models/irrpwc.py"
     cfg_file = osp.join(osp.dirname(__file__), cfg_file)
     cfg = Config.fromfile(cfg_file)
 
@@ -99,7 +106,8 @@ def test_irr_pwc():
         flow_bw_gt=flow_bw_gt,
         occ_fw_gt=occ_fw_gt,
         occ_bw_gt=occ_bw_gt,
-        test_mode=False)
+        test_mode=False,
+    )
     loss, _ = estimator._parse_losses(losses)
 
     assert float(loss.item()) > 0
@@ -112,17 +120,18 @@ def test_irr_pwc():
         occ_fw_gt=None,
         occ_bw_gt=None,
         flow_gt=flow_fw_gt,
-        test_mode=False)
+        test_mode=False,
+    )
     loss, _ = estimator._parse_losses(losses)
 
     assert float(loss.item()) > 0
 
     # test forward_train out with flow_fw_gt, flow_bw_gt
     losses = estimator(
-        imgs, flow_fw_gt=flow_fw_gt, flow_bw_gt=flow_bw_gt, test_mode=False)
+        imgs, flow_fw_gt=flow_fw_gt, flow_bw_gt=flow_bw_gt, test_mode=False
+    )
     loss, _ = estimator._parse_losses(losses)
 
     # test forward_train out with flow_gt, occ_gt
-    losses = estimator(
-        imgs, flow_gt=flow_fw_gt, occ_gt=occ_fw_gt, test_mode=False)
+    losses = estimator(imgs, flow_gt=flow_fw_gt, occ_gt=occ_fw_gt, test_mode=False)
     loss, _ = estimator._parse_losses(losses)

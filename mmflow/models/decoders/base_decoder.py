@@ -4,7 +4,7 @@ from typing import Dict, Optional, Sequence, Union
 
 import mmcv
 import numpy as np
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 
 
 class BaseDecoder(BaseModule):

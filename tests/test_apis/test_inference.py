@@ -5,7 +5,7 @@ import mmcv
 import numpy as np
 import pytest
 import torch
-from mmcv.utils import Config
+from mmengine.config import Config
 
 from mmflow.apis import inference_model, init_model
 from mmflow.models import PWCNet

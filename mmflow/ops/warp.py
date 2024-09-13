@@ -20,11 +20,11 @@ def coords_grid(flow: Tensor) -> Tensor:
     B, _, H, W = flow.shape
     xx = torch.arange(0, W, device=flow.device, requires_grad=False)
     yy = torch.arange(0, H, device=flow.device, requires_grad=False)
-    coords = torch.meshgrid(yy, xx)
+    coords = torch.meshgrid(yy, xx, indexing="ij")
     coords = torch.stack(coords[::-1], dim=0).float()
     grid = coords[None].repeat(B, 1, 1, 1) + flow
-    grid[:, 0, ...] = grid[:, 0, ...] * 2. / max(W - 1, 1) - 1.
-    grid[:, 1, ...] = grid[:, 1, ...] * 2. / max(H - 1, 1) - 1.
+    grid[:, 0, ...] = grid[:, 0, ...] * 2.0 / max(W - 1, 1) - 1.0
+    grid[:, 1, ...] = grid[:, 1, ...] * 2.0 / max(H - 1, 1) - 1.0
     grid = grid.permute(0, 2, 3, 1)
     return grid
 
@@ -45,12 +45,13 @@ class Warp(nn.Module):
             sampling more resolution agnostic. Default to False.
     """
 
-    def __init__(self,
-                 mode: str = 'bilinear',
-                 padding_mode: str = 'zeros',
-                 align_corners: bool = False,
-                 use_mask: bool = True) -> None:
-
+    def __init__(
+        self,
+        mode: str = "bilinear",
+        padding_mode: str = "zeros",
+        align_corners: bool = False,
+        use_mask: bool = True,
+    ) -> None:
         super().__init__()
         self.mode = mode
         self.padding_mode = padding_mode
@@ -75,7 +76,8 @@ class Warp(nn.Module):
             grid,
             mode=self.mode,
             padding_mode=self.padding_mode,
-            align_corners=self.align_corners)
+            align_corners=self.align_corners,
+        )
 
         mask = torch.ones(feat.size(), device=feat.device, requires_grad=False)
         if self.use_mask:
@@ -84,14 +86,15 @@ class Warp(nn.Module):
                 grid,
                 mode=self.mode,
                 padding_mode=self.padding_mode,
-                align_corners=self.align_corners)
+                align_corners=self.align_corners,
+            )
             mask = (mask > 0.9999).float()
         return out * mask
 
     def __repr__(self):
         s = self.__class__.__name__
-        s += f'(mode={self.mode}, '
-        s += f'padding_mode={self.padding_mode}, '
-        s += f'align_corners={self.align_corners},'
-        s += f'use_mask={self.use_mask})'
+        s += f"(mode={self.mode}, "
+        s += f"padding_mode={self.padding_mode}, "
+        s += f"align_corners={self.align_corners},"
+        s += f"use_mask={self.use_mask})"
         return s

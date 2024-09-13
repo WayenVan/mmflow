@@ -2,11 +2,16 @@
 from typing import Optional, Sequence, Union
 
 import torch.nn as nn
-from mmcv.cnn import MODELS as MMCV_MODELS
-from mmcv.utils import Registry, build_from_cfg
+
+
+from mmengine.registry import MODELS as MMCV_MODELS
+from mmengine.registry import Registry, build_from_cfg
+
+# from mmcv.cnn import MODELS as MMCV_MODELS
+# from mmengine.registry import Registry, build_from_cfg
 from torch.nn import Module
 
-MODELS = Registry('models', parent=MMCV_MODELS)
+MODELS = Registry("models", parent=MMCV_MODELS, locations=["mmflow.models"])
 ENCODERS = MODELS
 DECODERS = MODELS
 FLOW_ESTIMATORS = MODELS
@@ -14,9 +19,11 @@ LOSSES = MODELS
 COMPONENTS = MODELS
 
 
-def build(cfg: Union[Sequence[dict], dict],
-          registry: Registry,
-          default_args: Optional[dict] = None):
+def build(
+    cfg: Union[Sequence[dict], dict],
+    registry: Registry,
+    default_args: Optional[dict] = None,
+):
     """Build a module.
 
     Args:
@@ -30,9 +37,7 @@ def build(cfg: Union[Sequence[dict], dict],
         nn.Module: A built nn module.
     """
     if isinstance(cfg, list):
-        modules = [
-            build_from_cfg(cfg_, registry, default_args) for cfg_ in cfg
-        ]
+        modules = [build_from_cfg(cfg_, registry, default_args) for cfg_ in cfg]
         return nn.Sequential(*modules)
     else:
         return build_from_cfg(cfg, registry, default_args)

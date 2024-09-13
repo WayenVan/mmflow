@@ -7,7 +7,7 @@ import mmcv
 import numpy as np
 import torch
 from mmcv.parallel import MMDistributedDataParallel
-from mmcv.runner import get_dist_info
+from mmengine.dist.utils import get_dist_info
 
 from .metrics import eval_metrics
 

@@ -3,7 +3,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 
 from ..builder import DECODERS
 from .raft_decoder import ConvGRU, RAFTDecoder

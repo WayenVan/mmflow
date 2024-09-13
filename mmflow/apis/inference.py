@@ -6,21 +6,24 @@ import mmcv
 import numpy as np
 import torch
 from mmcv.ops import Correlation
+import mmengine
+from mmengine.runner import load_checkpoint
 from mmcv.parallel import collate, scatter
-from mmcv.runner import load_checkpoint
 
 from mmflow.datasets.pipelines import Compose
 from mmflow.models import build_flow_estimator
 
 
-def init_model(config: Union[str, mmcv.Config],
-               checkpoint: Optional[str] = None,
-               device: str = 'cuda:0',
-               cfg_options: Optional[dict] = None) -> torch.nn.Module:
+def init_model(
+    config: Union[str, mmengine.config.Config],
+    checkpoint: Optional[str] = None,
+    device: str = "cuda:0",
+    cfg_options: Optional[dict] = None,
+) -> torch.nn.Module:
     """Initialize a flow estimator from config file.
 
     Args:
-        config (str or :obj:`mmcv.Config`): Config file path or the config
+        config (str or :obj:`mmengine.config.Config`): Config file path or the config
             object.
         checkpoint (str, optional): Checkpoint path. If left as None, the model
             will not load any weights. Default to: None.
@@ -32,17 +35,18 @@ def init_model(config: Union[str, mmcv.Config],
     """
 
     if isinstance(config, str):
-        config = mmcv.Config.fromfile(config)
-    elif not isinstance(config, mmcv.Config):
-        raise TypeError('config must be a filename or Config object, '
-                        f'but got {type(config)}')
+        config = mmengine.config.Config.fromfile(config)
+    elif not isinstance(config, mmengine.config.Config):
+        raise TypeError(
+            "config must be a filename or Config object, " f"but got {type(config)}"
+        )
     if cfg_options is not None:
         config.merge_from_dict(cfg_options)
 
     config.model.train_cfg = None
     model = build_flow_estimator(config.model)
     if checkpoint is not None:
-        checkpoint = load_checkpoint(model, checkpoint, map_location='cpu')
+        checkpoint = load_checkpoint(model, checkpoint, map_location="cpu")
 
     model.cfg = config  # save the config in the model for convenience
     model.to(device)
@@ -55,8 +59,9 @@ def inference_model(
     model: torch.nn.Module,
     img1s: Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]],
     img2s: Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]],
-    valids: Optional[Union[str, np.ndarray, Sequence[str],
-                           Sequence[np.ndarray]]] = None
+    valids: Optional[
+        Union[str, np.ndarray, Sequence[str], Sequence[np.ndarray]]
+    ] = None,
 ) -> Union[List[np.ndarray], np.ndarray]:
     """Inference images pairs with the flow estimator.
 
@@ -84,28 +89,28 @@ def inference_model(
     cfg = model.cfg
     device = next(model.parameters()).device  # model device
 
-    if cfg.data.test.type == 'ConcatDataset':
+    if cfg.data.test.type == "ConcatDataset":
         cfg = copy.deepcopy(cfg.data.test.datasets[0])
     else:
         cfg = copy.deepcopy(cfg.data.test)
 
     if isinstance(img1s[0], np.ndarray):
         # set loading pipeline type
-        cfg.pipeline[0].type = 'LoadImageFromWebcam'
+        cfg.pipeline[0].type = "LoadImageFromWebcam"
 
     # as load annotation is for online evaluation
     # there is no need to load annotation.
-    if dict(type='LoadAnnotations') in cfg.pipeline:
-        cfg.pipeline.remove(dict(type='LoadAnnotations'))
-    if dict(type='LoadAnnotations', sparse=True) in cfg.pipeline:
-        cfg.pipeline.remove(dict(type='LoadAnnotations', sparse=True))
+    if dict(type="LoadAnnotations") in cfg.pipeline:
+        cfg.pipeline.remove(dict(type="LoadAnnotations"))
+    if dict(type="LoadAnnotations", sparse=True) in cfg.pipeline:
+        cfg.pipeline.remove(dict(type="LoadAnnotations", sparse=True))
 
-    if 'flow_gt' in cfg.pipeline[-1]['meta_keys']:
-        cfg.pipeline[-1]['meta_keys'].remove('flow_gt')
-    if 'flow_fw_gt' in cfg.pipeline[-1]['meta_keys']:
-        cfg.pipeline[-1]['meta_keys'].remove('flow_fw_gt')
-    if 'flow_bw_gt' in cfg.pipeline[-1]['meta_keys']:
-        cfg.pipeline[-1]['meta_keys'].remove('flow_bw_gt')
+    if "flow_gt" in cfg.pipeline[-1]["meta_keys"]:
+        cfg.pipeline[-1]["meta_keys"].remove("flow_gt")
+    if "flow_fw_gt" in cfg.pipeline[-1]["meta_keys"]:
+        cfg.pipeline[-1]["meta_keys"].remove("flow_fw_gt")
+    if "flow_bw_gt" in cfg.pipeline[-1]["meta_keys"]:
+        cfg.pipeline[-1]["meta_keys"].remove("flow_bw_gt")
 
     test_pipeline = Compose(cfg.pipeline)
     datas = []
@@ -115,7 +120,7 @@ def inference_model(
         if isinstance(valid, str):
             # there is no real example to test the function for loading valid
             # masks
-            valid = mmcv.imread(valid, flag='grayscale')
+            valid = mmcv.imread(valid, flag="grayscale")
         if isinstance(img1, np.ndarray) and isinstance(img2, np.ndarray):
             # directly add img and valid mask
             data = dict(img1=img1, img2=img2, valid=valid)
@@ -125,8 +130,9 @@ def inference_model(
                 img_info=dict(filename1=img1, filename2=img2),
                 img1_prefix=None,
                 img2_prefix=None,
-                valid=valid)
-        data['img_fields'] = ['img1', 'img2']
+                valid=valid,
+            )
+        data["img_fields"] = ["img1", "img2"]
         # build the data pipeline
         data = test_pipeline(data)
         datas.append(data)
@@ -135,8 +141,8 @@ def inference_model(
     data = collate(datas, samples_per_gpu=len(img1s))
     # just get the actual data from DataContainer
 
-    data['img_metas'] = data['img_metas'].data[0]
-    data['imgs'] = data['imgs'].data[0]
+    data["img_metas"] = data["img_metas"].data[0]
+    data["imgs"] = data["imgs"].data[0]
     if next(model.parameters()).is_cuda:
         # scatter to specified GPU
         data = scatter(data, [device])[0]
@@ -144,7 +150,7 @@ def inference_model(
         for m in model.modules():
             assert not isinstance(
                 m, Correlation
-            ), 'CPU inference with Correlation is not supported currently.'
+            ), "CPU inference with Correlation is not supported currently."
 
     # forward the model
     with torch.no_grad():
@@ -153,16 +159,16 @@ def inference_model(
     if valid_masks[0] is not None:
         # filter the output flow map
         for result, valid in zip(results, valid_masks):
-            if result.get('flow', None) is not None:
-                result['flow'] *= valid
-            elif result.get('flow_fw', None) is not None:
-                result['flow_fw'] *= valid
+            if result.get("flow", None) is not None:
+                result["flow"] *= valid
+            elif result.get("flow_fw", None) is not None:
+                result["flow_fw"] *= valid
 
     if not is_batch:
         # only can inference flow of forward direction
-        if results[0].get('flow', None) is not None:
-            return results[0]['flow']
-        if results[0].get('flow_fw', None) is not None:
-            return results[0]['flow_fw']
+        if results[0].get("flow", None) is not None:
+            return results[0]["flow"]
+        if results[0].get("flow_fw", None) is not None:
+            return results[0]["flow_fw"]
     else:
         return results

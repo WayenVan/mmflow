@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from mmcv.cnn import ConvModule
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 
 from mmflow.models.decoders.base_decoder import BaseDecoder
 from mmflow.ops import build_operators

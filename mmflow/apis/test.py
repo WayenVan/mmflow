@@ -9,7 +9,7 @@ import mmcv
 import numpy as np
 import torch
 import torch.distributed as dist
-from mmcv.runner import get_dist_info
+from mmengine.dist.utils import get_dist_info
 
 from mmflow.datasets.utils import visualize_flow, write_flow
 

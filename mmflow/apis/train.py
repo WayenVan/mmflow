@@ -1,4 +1,5 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+# !!!!!! this function could not be transferred,
 import random
 import warnings
 from typing import Optional, Sequence, Union
@@ -7,11 +8,32 @@ import mmcv
 import numpy as np
 import torch
 import torch.distributed as dist
-from mmcv.cnn.utils import revert_sync_batchnorm
-from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
-from mmcv.runner import (HOOKS, Fp16OptimizerHook, OptimizerHook,
-                         build_optimizer, build_runner, get_dist_info)
-from mmcv.utils import Config, build_from_cfg
+from torch.utils.data import Dataset as Dataset
+from mmengine.model.utils import revert_sync_batchnorm
+
+from mmengine.model.wrappers.distributed import MMDistributedDataParallel
+
+from mmengine.registry.root import HOOKS
+
+# using default Amp optimizer, but still you can change to Apex refer from:
+# https://mmcv.readthedocs.io/en/latest/get_started/api_reference.html#mmcv-utils
+from mmengine.optim.optimizer.amp_optimizer_wrapper import (
+    AmpOptimWrapper as Fp16OptimizerHook,
+)
+from mmengine.optim.optimizer.optimizer_wrapper import OptimWrapper as OptimizerHook
+
+# from mmengine.runner import Runner
+# from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
+# from mmcv.runner import (
+#     HOOKS,
+#     Fp16OptimizerHook,
+#     OptimizerHook,
+#     build_optimizer,
+#     build_runner,
+#     get_dist_info,
+# )
+from mmengine.config import Config
+from mmengine.registry import build_from_cfg
 
 from mmflow import digit_version
 from mmflow.core import DistEvalHook, EvalHook
@@ -19,10 +41,10 @@ from mmflow.datasets import build_dataloader, build_dataset
 from mmflow.utils import find_latest_checkpoint, get_root_logger
 
 Module = torch.nn.Module
-Dataset = torch.utils.data.Dataset
+# Dataset = torch.utils.data.Dataset
 
 
-def init_random_seed(seed: Optional[int] = None, device: str = 'cuda') -> int:
+def init_random_seed(seed: Optional[int] = None, device: str = "cuda") -> int:
     """Initialize random seed.
 
     If the seed is not set, the seed will be automatically randomized,
@@ -71,13 +93,15 @@ def set_random_seed(seed: int, deterministic: bool = False) -> None:
         torch.backends.cudnn.benchmark = False
 
 
-def train_model(model: Module,
-                dataset: Union[Sequence[Dataset], Dataset],
-                cfg: Config,
-                distributed: bool = False,
-                validate: bool = False,
-                timestamp: Optional[str] = None,
-                meta: Optional[dict] = None) -> None:
+def train_model(
+    model: Module,
+    dataset: Union[Sequence[Dataset], Dataset],
+    cfg: Config,
+    distributed: bool = False,
+    validate: bool = False,
+    timestamp: Optional[str] = None,
+    meta: Optional[dict] = None,
+) -> None:
     """Training model.
 
     Args:
@@ -100,13 +124,19 @@ def train_model(model: Module,
     # The overall dataloader settings
     loader_cfg = {
         k: v
-        for k, v in cfg.data.items() if k not in [
-            'train', 'val', 'test', 'train_dataloader', 'val_dataloader',
-            'test_dataloader'
+        for k, v in cfg.data.items()
+        if k
+        not in [
+            "train",
+            "val",
+            "test",
+            "train_dataloader",
+            "val_dataloader",
+            "test_dataloader",
         ]
     }
     # The specific training dataloader settings
-    train_loader_cfg = {**loader_cfg, **cfg.data.get('train_dataloader', {})}
+    train_loader_cfg = {**loader_cfg, **cfg.data.get("train_dataloader", {})}
     data_loaders = [
         build_dataloader(
             ds,
@@ -114,40 +144,49 @@ def train_model(model: Module,
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
             seed=cfg.seed,
-            **train_loader_cfg) for ds in dataset
+            **train_loader_cfg,
+        )
+        for ds in dataset
     ]
 
     # put model on gpus
     if distributed:
-        find_unused_parameters = cfg.get('find_unused_parameters', False)
+        find_unused_parameters = cfg.get("find_unused_parameters", False)
         # Sets the `find_unused_parameters` parameter in
         # torch.nn.parallel.DistributedDataParallel
         model = MMDistributedDataParallel(
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
             broadcast_buffers=False,
-            find_unused_parameters=find_unused_parameters)
+            find_unused_parameters=find_unused_parameters,
+        )
     else:
         # SyncBN is not support for DP
         warnings.warn(
-            'SyncBN is only supported with DDP. To be compatible with DP, '
-            'we convert SyncBN to BN. Please use dist_train.sh which can '
-            'avoid this error.')
+            "SyncBN is only supported with DDP. To be compatible with DP, "
+            "we convert SyncBN to BN. Please use dist_train.sh which can "
+            "avoid this error."
+        )
         model = revert_sync_batchnorm(model)
         if not torch.cuda.is_available():
-            assert digit_version(mmcv.__version__) >= digit_version('1.4.4'), \
-                    'Please use MMCV >= 1.4.4 for CPU training!'
-
-        model = MMDataParallel(model, device_ids=cfg.gpu_ids)
+            assert digit_version(mmcv.__version__) >= digit_version(
+                "1.4.4"
+            ), "Please use MMCV >= 1.4.4 for CPU training!"
+        raise RuntimeError("Data parallel is now deprecated, please use DDP.")
+        # old version code
+        # model = MMDataParallel(model, device_ids=cfg.gpu_ids)
 
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
-    if cfg.get('runner') is None:
-        cfg.runner = {'type': 'IterBasedRunner', 'max_iters': cfg.total_iters}
+    if cfg.get("runner") is None:
+        cfg.runner = {"type": "IterBasedRunner", "max_iters": cfg.total_iters}
         warnings.warn(
-            'config is now expected to have a `runner` section, '
-            'please set `runner` in your config.', UserWarning)
+            "config is now expected to have a `runner` section, "
+            "please set `runner` in your config.",
+            UserWarning,
+        )
 
+    runner = Runner.from_cfg(cfg.runner)
     runner = build_runner(
         cfg.runner,
         default_args=dict(
@@ -156,77 +195,83 @@ def train_model(model: Module,
             optimizer=optimizer,
             work_dir=cfg.work_dir,
             logger=logger,
-            meta=meta))
+            meta=meta,
+        ),
+    )
 
     # an ugly walkaround to make the .log and .log.json filenames the same
     runner.timestamp = timestamp
 
     # fp16 setting
-    fp16_cfg = cfg.get('fp16', None)
+    fp16_cfg = cfg.get("fp16", None)
     if fp16_cfg is not None:
         optimizer_config = Fp16OptimizerHook(
-            **cfg.optimizer_config, **fp16_cfg, distributed=distributed)
-    elif distributed and 'type' not in cfg.optimizer_config:
+            **cfg.optimizer_config, **fp16_cfg, distributed=distributed
+        )
+    elif distributed and "type" not in cfg.optimizer_config:
         optimizer_config = OptimizerHook(**cfg.optimizer_config)
     else:
         optimizer_config = cfg.optimizer_config
 
     # The specific validation dataloader settings
-    val_loader_cfg = {**loader_cfg, **cfg.data.get('val_dataloader', {})}
+    val_loader_cfg = {**loader_cfg, **cfg.data.get("val_dataloader", {})}
 
     # register hooks
-    runner.register_training_hooks(cfg.lr_config, optimizer_config,
-                                   cfg.checkpoint_config, cfg.log_config,
-                                   cfg.get('momentum_config', None))
+    runner.register_training_hooks(
+        cfg.lr_config,
+        optimizer_config,
+        cfg.checkpoint_config,
+        cfg.log_config,
+        cfg.get("momentum_config", None),
+    )
 
     # register eval hooks
     if validate:
-        separate_eval = cfg.data.val.get('separate_eval', False)
+        separate_eval = cfg.data.val.get("separate_eval", False)
         if separate_eval:
-            val_dataset = [
-                build_dataset(dataset) for dataset in cfg.data.val.datasets
-            ]
+            val_dataset = [build_dataset(dataset) for dataset in cfg.data.val.datasets]
             val_dataloader = [
-                build_dataloader(
-                    _val_dataset, **val_loader_cfg, dist=distributed)
+                build_dataloader(_val_dataset, **val_loader_cfg, dist=distributed)
                 for _val_dataset in val_dataset
             ]
             val_dataset_name = [ds.dataset_name for ds in val_dataset]
         else:
-
             val_dataset = build_dataset(cfg.data.val, dict(test_mode=True))
             val_dataloader = build_dataloader(
-                val_dataset, **val_loader_cfg, dist=distributed)
+                val_dataset, **val_loader_cfg, dist=distributed
+            )
             val_dataset_name = val_dataset.dataset_name
 
-        eval_cfg = cfg.get('evaluation', {})
-        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
+        eval_cfg = cfg.get("evaluation", {})
+        eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
 
         eval_hook = DistEvalHook if distributed else EvalHook
         # In this PR (https://github.com/open-mmlab/mmcv/pull/1193), the
         # priority of IterTimerHook has been modified from 'NORMAL'
         # to 'LOW'.
         runner.register_hook(
-            eval_hook(
-                val_dataloader, **eval_cfg, dataset_name=val_dataset_name),
-            priority='LOW')
+            eval_hook(val_dataloader, **eval_cfg, dataset_name=val_dataset_name),
+            priority="LOW",
+        )
 
     # user-defined hooks
-    if cfg.get('custom_hooks', None):
+    if cfg.get("custom_hooks", None):
         custom_hooks = cfg.custom_hooks
-        assert isinstance(custom_hooks, list), \
-            f'custom_hooks expect list type, but got {type(custom_hooks)}'
+        assert isinstance(
+            custom_hooks, list
+        ), f"custom_hooks expect list type, but got {type(custom_hooks)}"
         for hook_cfg in cfg.custom_hooks:
-            assert isinstance(hook_cfg, dict), \
-                'Each item in custom_hooks expects dict type, but got ' \
-                f'{type(hook_cfg)}'
+            assert isinstance(hook_cfg, dict), (
+                "Each item in custom_hooks expects dict type, but got "
+                f"{type(hook_cfg)}"
+            )
             hook_cfg = hook_cfg.copy()
-            priority = hook_cfg.pop('priority', 'NORMAL')
+            priority = hook_cfg.pop("priority", "NORMAL")
             hook = build_from_cfg(hook_cfg, HOOKS)
             runner.register_hook(hook, priority=priority)
 
     resume_from = None
-    if cfg.resume_from is None and cfg.get('auto_resume'):
+    if cfg.resume_from is None and cfg.get("auto_resume"):
         resume_from = find_latest_checkpoint(cfg.work_dir)
     if resume_from is not None:
         cfg.resume_from = resume_from

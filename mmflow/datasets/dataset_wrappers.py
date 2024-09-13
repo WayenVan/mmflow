@@ -2,7 +2,7 @@
 from logging import Logger
 from typing import Any, Optional, Sequence, Union
 
-from mmcv.utils import print_log
+from mmengine.logging import print_log
 from torch.utils.data import Dataset
 from torch.utils.data.dataset import ConcatDataset as _ConcatDataset
 

@@ -19,7 +19,7 @@ def flow_to_coords(flow: Tensor) -> Tensor:
     B, _, H, W = flow.shape
     xx = torch.arange(0, W, device=flow.device, requires_grad=False)
     yy = torch.arange(0, H, device=flow.device, requires_grad=False)
-    coords = torch.meshgrid(yy, xx)
+    coords = torch.meshgrid(yy, xx, indexing="ij")
     coords = torch.stack(coords[::-1], dim=0).float()
     coords = coords[None].repeat(B, 1, 1, 1) + flow
     return coords
@@ -70,13 +70,14 @@ def compute_range_map(flow: Tensor) -> Tensor:
             # Only count valid pixels.
             mask = torch.logical_and(
                 torch.logical_and(idxs_j >= 0, idxs_j < W),
-                torch.logical_and(idxs_i >= 0, idxs_i < H))
+                torch.logical_and(idxs_i >= 0, idxs_i < H),
+            )
             valid_idxs = idxs[mask]
             valid_offsets = coords_offset_flattened[mask]
 
             # Compute weights according to bilinear interpolation.
-            weights_j = (1. - dj) - (-1)**dj * valid_offsets[:, 0]
-            weights_i = (1. - di) - (-1)**di * valid_offsets[:, 1]
+            weights_j = (1.0 - dj) - (-1) ** dj * valid_offsets[:, 0]
+            weights_i = (1.0 - di) - (-1) ** di * valid_offsets[:, 1]
             weights = weights_i * weights_j
 
             # Append indices and weights to the corresponding list.
@@ -88,16 +89,17 @@ def compute_range_map(flow: Tensor) -> Tensor:
 
     # Sum up weights for each pixel and reshape the result.
     count_image = torch.zeros(N * H * W)
-    count_image = count_image.index_add_(
-        dim=0, index=idxs, source=weights).reshape(N, H, W)
+    count_image = count_image.index_add_(dim=0, index=idxs, source=weights).reshape(
+        N, H, W
+    )
     occ = (count_image >= 1).to(flow)[:, None, ...]
     return occ
 
 
 def forward_backward_consistency(
-        flow_fw: Tensor,
-        flow_bw: Tensor,
-        warp_cfg: dict = dict(type='Warp', align_corners=True),
+    flow_fw: Tensor,
+    flow_bw: Tensor,
+    warp_cfg: dict = dict(type="Warp", align_corners=True),
 ) -> Tensor:
     """Occlusion mask from forward-backward consistency.
 
@@ -114,20 +116,22 @@ def forward_backward_consistency(
     warped_flow_bw = warp(flow_bw, flow_fw)
 
     forward_backward_sq_diff = torch.sum(
-        (flow_fw + warped_flow_bw)**2, dim=1, keepdim=True)
+        (flow_fw + warped_flow_bw) ** 2, dim=1, keepdim=True
+    )
     forward_backward_sum_sq = torch.sum(
-        flow_fw * 2 + warped_flow_bw**2, dim=1, keepdim=True)
+        flow_fw * 2 + warped_flow_bw**2, dim=1, keepdim=True
+    )
 
-    occ = (forward_backward_sq_diff <
-           forward_backward_sum_sq * 0.01 + 0.5).to(flow_fw)
+    occ = (forward_backward_sq_diff < forward_backward_sum_sq * 0.01 + 0.5).to(flow_fw)
     return occ
 
 
-def forward_backward_absdiff(flow_fw: Tensor,
-                             flow_bw: Tensor,
-                             warp_cfg: dict = dict(
-                                 type='Warp', align_corners=True),
-                             diff: int = 1.5) -> Tensor:
+def forward_backward_absdiff(
+    flow_fw: Tensor,
+    flow_bw: Tensor,
+    warp_cfg: dict = dict(type="Warp", align_corners=True),
+    diff: int = 1.5,
+) -> Tensor:
     """Occlusion mask from forward-backward consistency.
 
     Args:
@@ -143,17 +147,17 @@ def forward_backward_absdiff(flow_fw: Tensor,
     warped_flow_bw = warp(flow_bw, flow_fw)
 
     forward_backward_sq_diff = torch.sum(
-        (flow_fw + warped_flow_bw)**2, dim=1, keepdim=True)
+        (flow_fw + warped_flow_bw) ** 2, dim=1, keepdim=True
+    )
 
     occ = (forward_backward_sq_diff**0.5 < diff).to(flow_fw)
 
     return occ
 
 
-def occlusion_estimation(flow_fw: Tensor,
-                         flow_bw: Tensor,
-                         mode: str = 'consistency',
-                         **kwarg) -> Dict[str, Tensor]:
+def occlusion_estimation(
+    flow_fw: Tensor, flow_bw: Tensor, mode: str = "consistency", **kwarg
+) -> Dict[str, Tensor]:
     """Occlusion estimation.
 
     Args:
@@ -166,19 +170,19 @@ def occlusion_estimation(flow_fw: Tensor,
     Returns:
         Dict[str,Tensor]: 1 denote non-occluded and 0 denote occluded
     """
-    assert mode in ('consistency', 'range_map', 'fb_abs'), \
-        'mode must be \'consistency\', \'range_map\' or \'fb_abs\', ' \
-        f'but got {mode}'
+    assert mode in ("consistency", "range_map", "fb_abs"), (
+        "mode must be 'consistency', 'range_map' or 'fb_abs', " f"but got {mode}"
+    )
 
-    if mode == 'consistency':
+    if mode == "consistency":
         occ_fw = forward_backward_consistency(flow_fw, flow_bw, **kwarg)
         occ_bw = forward_backward_consistency(flow_bw, flow_fw, **kwarg)
 
-    elif mode == 'range_map':
+    elif mode == "range_map":
         occ_fw = compute_range_map(flow_bw)
         occ_bw = compute_range_map(flow_fw)
 
-    elif mode == 'fb_abs':
+    elif mode == "fb_abs":
         occ_fw = forward_backward_absdiff(flow_fw, flow_bw, **kwarg)
         occ_bw = forward_backward_absdiff(flow_bw, flow_fw, **kwarg)
 

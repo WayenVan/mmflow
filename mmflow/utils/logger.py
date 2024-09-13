@@ -1,12 +1,12 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import logging
 from typing import Optional
+from mmengine.logging import MMLogger
 
-from mmcv.utils import get_logger
 
-
-def get_root_logger(log_file: Optional[str] = None,
-                    log_level: int = logging.INFO) -> logging.Logger:
+def get_root_logger(
+    log_file: Optional[str] = None, log_level: int = logging.INFO
+) -> logging.Logger:
     """Get the logger when training or testing task.
 
     Args:
@@ -17,4 +17,4 @@ def get_root_logger(log_file: Optional[str] = None,
     Returns:
         logging.Logger: The expected logger.
     """
-    return get_logger('mmflow', log_file, log_level)
+    return MMLogger("MMflow", "mmflow", log_file, log_level)

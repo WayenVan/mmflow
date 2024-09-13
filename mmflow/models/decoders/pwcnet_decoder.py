@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 
 from mmflow.ops.builder import build_operators
 from ..builder import DECODERS, build_components, build_loss

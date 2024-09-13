@@ -23,18 +23,20 @@ def coords_grid(batch: int, xx: Tensor, yy: Tensor) -> Tensor:
         Tensor: Tensor of shape (batch, 2, H, W) with values of items'
             coordinate.
     """
-    coords = torch.meshgrid(yy, xx)
+    coords = torch.meshgrid(yy, xx, indexing="ij")
     coords = torch.stack(coords[::-1], dim=0).float()
 
     return coords[None].repeat(batch, 1, 1, 1)  # shape(batch, 2, H, W)
 
 
-def bilinear_sample(feat: Tensor,
-                    grid: Tensor,
-                    mode: str = 'bilinear',
-                    padding_mode: str = 'zeros',
-                    align_corners: bool = False,
-                    scale: bool = True) -> Tensor:
+def bilinear_sample(
+    feat: Tensor,
+    grid: Tensor,
+    mode: str = "bilinear",
+    padding_mode: str = "zeros",
+    align_corners: bool = False,
+    scale: bool = True,
+) -> Tensor:
     """Computes the output using input feature values and pixel locations from
     grid.
 
@@ -62,8 +64,8 @@ def bilinear_sample(feat: Tensor,
     if grid.shape[-1] != 2:
         grid = grid.permute(0, 2, 3, 1)
     if scale:
-        grid[:, :, :, 0] = grid[:, :, :, 0] * 2. / max(W - 1, 1) - 1.
-        grid[:, :, :, 1] = grid[:, :, :, 1] * 2. / max(H - 1, 1) - 1.
+        grid[:, :, :, 0] = grid[:, :, :, 0] * 2.0 / max(W - 1, 1) - 1.0
+        grid[:, :, :, 1] = grid[:, :, :, 1] * 2.0 / max(H - 1, 1) - 1.0
 
     return F.grid_sample(feat, grid, mode, padding_mode, align_corners)
 
@@ -89,11 +91,13 @@ class CorrLookup(nn.Module):
             sampling more resolution agnostic. Default to True.
     """
 
-    def __init__(self,
-                 radius: int = 4,
-                 mode: str = 'bilinear',
-                 padding_mode: str = 'zeros',
-                 align_corners: bool = True) -> None:
+    def __init__(
+        self,
+        radius: int = 4,
+        mode: str = "bilinear",
+        padding_mode: str = "zeros",
+        align_corners: bool = True,
+    ) -> None:
         super().__init__()
         self.r = radius
         self.mode = mode
@@ -116,11 +120,9 @@ class CorrLookup(nn.Module):
         grid = coords_grid(B, xx, yy) + flow  # shape N, 2, H, W
         grid = grid.permute(0, 2, 3, 1)  # shape N, H, W, 2
 
-        dx = torch.linspace(
-            -self.r, self.r, 2 * self.r + 1, device=flow.device)
-        dy = torch.linspace(
-            -self.r, self.r, 2 * self.r + 1, device=flow.device)
-        delta = torch.stack(torch.meshgrid(dy, dx), axis=-1)
+        dx = torch.linspace(-self.r, self.r, 2 * self.r + 1, device=flow.device)
+        dy = torch.linspace(-self.r, self.r, 2 * self.r + 1, device=flow.device)
+        delta = torch.stack(torch.meshgrid(dy, dx, indexing="ij"), dim=-1)
         delta_lvl = delta.view(1, 2 * self.r + 1, 2 * self.r + 1, 2)
 
         out_corr_pyramid = []
@@ -128,8 +130,9 @@ class CorrLookup(nn.Module):
             centroid_lvl = grid.reshape(B * H * W, 1, 1, 2) / 2**i
             coords_lvl = centroid_lvl + delta_lvl
 
-            corr = bilinear_sample(corr, coords_lvl, self.mode,
-                                   self.padding_mode, self.align_corners)
+            corr = bilinear_sample(
+                corr, coords_lvl, self.mode, self.padding_mode, self.align_corners
+            )
             corr = corr.view(B, H, W, -1)
             out_corr_pyramid.append(corr)
 

@@ -2,7 +2,7 @@
 import collections
 from typing import Sequence
 
-from mmcv.utils import build_from_cfg
+from mmengine.registry import build_from_cfg
 
 from ..builder import PIPELINES
 

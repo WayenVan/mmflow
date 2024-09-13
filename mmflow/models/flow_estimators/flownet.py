@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 from typing import Dict, Optional, Sequence, Tuple, Union
 
-from mmcv.utils import Config
+from mmengine.config import Config
 from numpy import ndarray
 from torch import Tensor
 

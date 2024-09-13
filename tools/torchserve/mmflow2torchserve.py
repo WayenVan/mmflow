@@ -44,7 +44,7 @@ def mmflow2torchserve(
     """
     mmcv.mkdir_or_exist(output_folder)
 
-    config = mmcv.Config.fromfile(config_file)
+    config = mmengine.config.Config.fromfile(config_file)
 
     with TemporaryDirectory() as tmpdir:
         config.dump(f'{tmpdir}/config.py')

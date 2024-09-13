@@ -2,7 +2,7 @@
 from typing import Tuple
 
 import torch
-from mmcv.runner import BaseModule
+from mmengine.model import BaseModule
 from torch import Tensor, nn
 
 

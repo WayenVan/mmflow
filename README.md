@@ -39,6 +39,62 @@ English | [简体中文](README_zh-CN.md)
 
 </div>
 
+## Important
+
+Since the old repo is incompatible with mmcv >= 2.0.0, I forked it and transferred
+PART of its function to support newer mmcv for my research. With this repo, you could at least construct the model and load pretrained models. However, the training and evaluation functions are not supported, but you can train them by the   newer mmengine runner.
+
+THIS REPO ONLY PASSED TESTING FOR:
+
+- tests/test_models
+- tests/test_utils
+- tests/test_op
+
+THE FOLLOWING TESTS FAILED:
+
+- tests/test_core
+- tests/test_apis
+- tests/test_datasets
+
+a test code is here
+
+```python
+import cv2
+import torch
+from torchvision.transforms import functional as F
+import numpy as np
+from einops import repeat
+from mmflow.models.builder import build_flow_estimator
+from mmengine.config import Config
+
+# from mmflow.apis import inference_model !!!! do not import any of unsupported modules
+from mmflow.models.decoders.gma_decoder import GMADecoder
+from mmflow.models.flow_estimators.raft import RAFT
+
+device = "cuda:0"
+# Read an image
+image = cv2.imread("resources/test_image.png")
+# Map the image to [0, 1]
+image = image.astype(np.float32) / 255.0
+image = F.to_tensor(image)
+# Initialize the FlowNet2SD model
+
+cfg = Config.fromfile("resources/GMA/gma_8x2_50k_kitti2015_288x960.py")
+ckpt = torch.load("resources/GMA/gma_8x2_50k_kitti2015_288x960.pth")
+
+model = build_flow_estimator(cfg.model)
+model.load_state_dict(ckpt["state_dict"])
+model.to(device)
+
+input_data = repeat(image, "c h w -> b c h w", b=8)
+input_data = torch.cat([input_data, input_data], dim=1).to(device)
+
+output = model(input_data, test_mode=True)
+
+print(output)
+
+```
+
 ## Introduction
 
 MMFlow is an open source optical flow toolbox based on PyTorch. It is a part of the [OpenMMLab](https://openmmlab.com/) project.
